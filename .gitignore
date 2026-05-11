@@ -1,0 +1,22 @@
+# Gradle
+.gradle/
+build/
+
+# Android Studio / IntelliJ
+.idea/
+*.iml
+local.properties
+
+# Build artifacts
+*.apk
+*.aar
+*.jks
+
+# Python
+venv/
+__pycache__/
+*.pyc
+
+# Misc
+*.hprof
+.DS_Store
