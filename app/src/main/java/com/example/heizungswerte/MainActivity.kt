@@ -54,7 +54,7 @@ class MainActivity : ComponentActivity() {
         val db = Room.databaseBuilder(
             applicationContext,
             AppDatabase::class.java, "heizung-db"
-        ).fallbackToDestructiveMigration().build()
+        ).build()
 
         val repository = ReadingRepository(db.readingDao())
         
