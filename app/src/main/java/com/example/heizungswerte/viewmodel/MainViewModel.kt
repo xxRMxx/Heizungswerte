@@ -1,5 +1,6 @@
 package com.example.heizungswerte.viewmodel
 
+import android.content.Context
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
@@ -8,13 +9,17 @@ import com.example.heizungswerte.data.DayNote
 import com.example.heizungswerte.data.Radiator
 import com.example.heizungswerte.data.Reading
 import com.example.heizungswerte.data.ReadingRepository
+import com.example.heizungswerte.util.BackupManager
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.util.*
 
-class MainViewModel(private val repository: ReadingRepository) : ViewModel() {
+class MainViewModel(
+    private val repository: ReadingRepository,
+    private val context: Context
+) : ViewModel() {
 
     val uniqueDates: StateFlow<List<Long>> = repository.uniqueDates
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -32,6 +37,17 @@ class MainViewModel(private val repository: ReadingRepository) : ViewModel() {
         val totalYearToDate: Int,
         val lastDifference: Int
     )
+
+    private fun triggerBackup() {
+        viewModelScope.launch {
+            BackupManager.createCsvBackup(
+                context,
+                allReadings.value,
+                allNotes.value,
+                uniqueDates.value
+            )
+        }
+    }
 
     fun getStats(readings: List<Reading>, dates: List<Long>): ConsumptionStats {
         if (dates.isEmpty() || readings.isEmpty()) return ConsumptionStats(0, 0)
@@ -53,7 +69,7 @@ class MainViewModel(private val repository: ReadingRepository) : ViewModel() {
     }
 
     fun clearInputs() {
-        radiatorValues.keys.forEach { radiatorValues[it] = "" }
+        radiatorValues.clear()
         dayNote.value = ""
     }
 
@@ -85,6 +101,8 @@ class MainViewModel(private val repository: ReadingRepository) : ViewModel() {
             if (readings.isNotEmpty()) {
                 repository.saveReadings(readings)
                 repository.saveNote(DayNote(normalizedDate, dayNote.value))
+                // Trigger backup
+                triggerBackup()
                 // Clear inputs after save
                 clearInputs()
                 onSaved()
@@ -95,6 +113,8 @@ class MainViewModel(private val repository: ReadingRepository) : ViewModel() {
     fun deleteReadings(dateMillis: Long, onDeleted: () -> Unit) {
         viewModelScope.launch {
             repository.deleteReadingsForDate(normalizeDate(dateMillis))
+            // Trigger backup
+            triggerBackup()
             onDeleted()
         }
     }

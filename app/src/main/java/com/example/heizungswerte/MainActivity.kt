@@ -61,7 +61,7 @@ class MainActivity : ComponentActivity() {
         // Manual Import logic
         importInitialData(db, this)
 
-        val factory = ViewModelFactory(repository)
+        val factory = ViewModelFactory(repository, applicationContext)
 
         setContent {
             HeizungswerteTheme {
@@ -100,6 +100,9 @@ fun HeizungApp(factory: ViewModelFactory) {
     var showHistory by remember { mutableStateOf(false) }
     var editingDate by remember { mutableStateOf<Long?>(null) }
     var showDeleteDialog by remember { mutableStateOf(false) }
+    
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
 
     // Handle Back Navigation
     BackHandler(enabled = showHistory || editingDate != null) {
@@ -121,6 +124,9 @@ fun HeizungApp(factory: ViewModelFactory) {
                         viewModel.deleteReadings(editingDate!!) {
                             editingDate = null
                             showHistory = true
+                            scope.launch {
+                                snackbarHostState.showSnackbar("Eintrag gelöscht")
+                            }
                         }
                         showDeleteDialog = false
                     }
@@ -134,6 +140,7 @@ fun HeizungApp(factory: ViewModelFactory) {
 
     Scaffold(
         contentWindowInsets = WindowInsets.systemBars,
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { Text(if (editingDate != null) "Eintrag bearbeiten" else if (showHistory) "Historie" else "Neue Ablesung") },
@@ -157,7 +164,10 @@ fun HeizungApp(factory: ViewModelFactory) {
                             Icon(Icons.Default.Delete, contentDescription = "Löschen")
                         }
                     } else {
-                        IconButton(onClick = { showHistory = !showHistory }) {
+                        IconButton(onClick = { 
+                            if (showHistory) viewModel.clearInputs()
+                            showHistory = !showHistory 
+                        }) {
                             Icon(
                                 imageVector = if (showHistory) Icons.Default.DateRange else Icons.Default.History,
                                 contentDescription = if (showHistory) "Eingabe" else "Historie"
@@ -173,13 +183,20 @@ fun HeizungApp(factory: ViewModelFactory) {
                 EntryScreen(viewModel, editingDate!!) {
                     editingDate = null
                     showHistory = true
+                    scope.launch {
+                        snackbarHostState.showSnackbar("Eintrag aktualisiert")
+                    }
                 }
             } else if (showHistory) {
                 HistoryScreen(viewModel) { date ->
                     editingDate = date
                 }
             } else {
-                EntryScreen(viewModel, isNewEntry = true)
+                EntryScreen(viewModel, isNewEntry = true) {
+                    scope.launch {
+                        snackbarHostState.showSnackbar("Ablesung erfolgreich gespeichert")
+                    }
+                }
             }
         }
     }
@@ -221,8 +238,9 @@ fun EntryScreen(
     LaunchedEffect(selectedDate) {
         if (isNewEntry && selectedDate == initialDate) {
             viewModel.clearInputs()
+        } else {
+            viewModel.loadReadingsForDate(selectedDate)
         }
-        viewModel.loadReadingsForDate(selectedDate)
     }
 
     if (showDatePicker) {
